@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code 生成器</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 10px;
+            margin: 0;
+            user-select: none;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            max-width: 520px;
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+            position: relative;
+        }
+        h2 { margin-top: 0; color: #2c3e50; font-size: 20px; }
+        .form-group { margin-bottom: 15px; text-align: left; }
+        label { display: block; margin-bottom: 6px; font-weight: bold; color: #555; font-size: 14px; }
+        input[type="text"] {
+            width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 15px;
+        }
+        
+        .settings-row {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .settings-row .compact { flex: 1; min-width: 0; }
+        select { width: 100%; padding: 8px; border: 1px solid #bbb; border-radius: 5px; background: #fff; font-size: 14px; box-sizing: border-box; }
+
+        /* 版本範圍選單與外觀 */
+        .range-box {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            width: 100%;
+        }
+
+        .range-box select {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .range-box span {
+            color: #666;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .compact-select {
+            position: relative;
+        }
+
+/* 修改後：移除絕對定位，讓選單在原本的位置正常展開 */
+.compact-select:focus {
+    outline: none;
+}
+
+        .char-custom-row { display: flex; gap: 8px; align-items: center; }
+        .char-custom-row input { width: 50px; text-align: center; padding: 5px; font-size: 15px; }
+
+        /* 頁籤切換 */
+        .tab-menu { display: flex; margin-top: 15px; border-bottom: 2px solid #e0e0e0; }
+        .tab-btn {
+            flex: 1; padding: 10px; background: none; border: none; font-size: 14px; font-weight: bold;
+            color: #777; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s;
+        }
+        .tab-btn.active { color: #1a73e8; border-bottom-color: #1a73e8; }
+
+        .preview-box {
+            padding: 15px 5px; background-color: #fafafa; border: 2px dashed #ddd;
+            border-top: none; border-radius: 0 0 8px 8px; display: flex; flex-direction: column; align-items: center;
+            min-height: 260px;
+        }
+        .tab-content { display: none; width: 100%; flex-direction: column; align-items: center; }
+        .tab-content.active { display: flex; }
+
+        /* QR Code 顯示容器 (確保放大置中) */
+        .qr-wrapper {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 10px auto;
+            width: 100%;
+        }
+
+        #qrcode {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+        }
+
+        #qrcode canvas {
+            display: block;
+            width: 240px !important;
+            height: 240px !important;
+            max-width: 100%;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        /* 規格資訊標籤 */
+        .info-tag {
+            font-size: 14px;
+            font-weight: bold;
+            color: #1a73e8;
+            background-color: #e8f4f8;
+            padding: 8px 12px;
+            border-radius: 20px;
+            display: inline-block;
+            max-width: 100%;
+            box-sizing: border-box;
+            word-break: break-all;
+            margin-top: 10px;
+        }
+        .info-tag.error {
+            color: #c0392b;
+            background-color: #fadbd8;
+        }
+
+        /* 帶座標欄位的網格滾動區 */
+        .grid-scroll-container {
+            width: 100%; max-height: 340px; overflow: auto; border: 1px solid #bbb;
+            background: #eef2f5; touch-action: none; position: relative;
+        }
+
+        .pixel-grid {
+            display: grid; gap: 1px; background-color: #ccc; border: 1px solid #999;
+            margin: 0 auto; width: max-content;
+        }
+
+        /* 座標號碼標籤 */
+        .header-cell {
+            width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+            font-size: 9px; font-weight: bold; color: #555; background-color: #e2e8f0;
+            font-family: monospace; z-index: 3;
+        }
+        .header-cell.corner { background-color: #cbd5e1; }
+
+        /* 內容像素格子 */
+        .pixel-cell {
+            width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+            font-size: 10px; background-color: #fff; font-family: monospace; cursor: pointer;
+        }
+        .pixel-cell.dark { background-color: #2c3e50; color: #fff; }
+
+        /* 框選藍底藍邊 */
+        .pixel-cell.selecting {
+            background-color: #c2e0ff !important;
+            outline: 1.5px dashed #1a73e8;
+            z-index: 2;
+        }
+
+        /* 複製後的永久綠底藍邊標記 */
+        .pixel-cell.copied-mark {
+            background-color: #7aabfa !important;
+            box-shadow: inset 0 0 0 1.5px #1a73e8;
+            color: #000 !important;
+        }
+
+        /* 按鈕群組 */
+        .action-buttons { margin-top: 15px; display: flex; gap: 8px; flex-direction: column; }
+        .sub-buttons { display: flex; gap: 8px; }
+        .btn {
+            width: 100%; padding: 12px; font-size: 15px; font-weight: bold; color: #fff;
+            border: none; border-radius: 8px; cursor: pointer; transition: background 0.2s;
+        }
+        .btn-copy { background-color: #1a73e8; }
+        .btn-copy:hover { background-color: #1557b0; }
+        
+        .btn-select-all { background-color: #2e7d32; padding: 8px; font-size: 13px; display: none; flex: 1; }
+        .btn-select-all:hover { background-color: #1b5e20; }
+
+        .btn-clear { background-color: #7f8c8d; padding: 8px; font-size: 13px; display: none; flex: 1; }
+        .btn-clear:hover { background-color: #636e72; }
+
+        @media (max-width: 480px) {
+            .settings-row {
+                flex-direction: column;
+                gap: 0;
+            }
+            .settings-row .compact {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>QR Code 生成器</h2>
+    
+    <div class="form-group">
+        <label for="qr-text">輸入內容：</label>
+        <input type="text" id="qr-text" value="https://hokutolite.github.io/StenoneStudio">
+    </div>
+
+    <div class="settings-row">
+        <div class="form-group compact">
+            <label for="error-level">錯誤修正：</label>
+            <select id="error-level">
+                <option value="L">L 級（低）</option>
+                <option value="M" selected>M 級（中）</option>
+                <option value="Q">Q 級（較高）</option>
+                <option value="H">H 級（高）</option>
+            </select>
+        </div>
+
+        <div class="form-group compact">
+            <label>版本範圍：</label>
+            <div class="range-box">
+                <select id="min-version" class="compact-select" aria-label="最小版本"></select>
+                <span>～</span>
+                <select id="max-version" class="compact-select" aria-label="最大版本"></select>
+            </div>
+        </div>
+
+        <div class="form-group compact">
+            <label>自訂字元：</label>
+            <div class="char-custom-row">
+                <input type="text" id="char-0" value="⬜" maxlength="2">
+                <input type="text" id="char-1" value="⬛" maxlength="2">
+            </div>
+        </div>
+    </div>
+
+    <!-- 頁籤 -->
+    <div class="tab-menu">
+        <button class="tab-btn active" id="tab-img-btn">📷 原始圖片</button>
+        <button class="tab-btn" id="tab-grid-btn">🔳 網格選取 (帶欄位號碼)</button>
+    </div>
+
+    <div class="preview-box">
+        <!-- 圖檔預覽區 -->
+        <div class="tab-content active" id="tab-img-content">
+            <div class="qr-wrapper">
+                <div id="qrcode"></div>
+            </div>
+            <div class="info-tag" id="size-info">規格：計算中...</div>
+        </div>
+
+        <!-- 網格區 -->
+        <div class="tab-content" id="tab-grid-content">
+            <div class="grid-scroll-container" id="grid-container">
+                <div class="pixel-grid" id="pixel-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 按鈕區 -->
+    <div class="action-buttons">
+        <button class="btn btn-copy" id="copy-btn">📷 複製完整圖檔</button>
+        <div class="sub-buttons">
+            <button class="btn btn-select-all" id="select-all-btn">☑️ 全選網格</button>
+            <button class="btn btn-clear" id="clear-mark-btn">🔄 清空永久標記</button>
+        </div>
+    </div>
+</div>
+
+<!-- 本地 QRCode 腳本 -->
+<script src="js/qrcode.min.js"></script>
+
+<script src="js/qrcode.min.js"></script>
+
+<script>
+    var textInput = document.getElementById("qr-text");
+    var errorLevelInput = document.getElementById("error-level");
+    var minVersionInput = document.getElementById("min-version");
+    var maxVersionInput = document.getElementById("max-version");
+    var char0Input = document.getElementById("char-0");
+    var char1Input = document.getElementById("char-1");
+    var pixelGrid = document.getElementById("pixel-grid");
+    var qrcodeContainer = document.getElementById("qrcode");
+    var sizeInfo = document.getElementById("size-info");
+    var copyBtn = document.getElementById("copy-btn");
+    var selectAllBtn = document.getElementById("select-all-btn");
+    var clearMarkBtn = document.getElementById("clear-mark-btn");
+
+    var tabImgBtn = document.getElementById("tab-img-btn");
+    var tabGridBtn = document.getElementById("tab-grid-btn");
+    var tabImgContent = document.getElementById("tab-img-content");
+    var tabGridContent = document.getElementById("tab-grid-content");
+
+    var modulesCount = 0;
+    var startCell = null;
+    var endCell = null;
+    var isDragging = false;
+    var activeTab = "img";
+
+    // 初始化版本範圍選單 (1 ~ 40)
+    for (var version = 1; version <= 40; version++) {
+        minVersionInput.add(new Option(version, version));
+        maxVersionInput.add(new Option(version, version));
+    }
+    minVersionInput.value = "1";
+    maxVersionInput.value = "40";
+
+    function attachCompactSelectBehavior(selectEl) {
+        selectEl.addEventListener("focus", function () {
+            this.size = 5;
+        });
+        selectEl.addEventListener("change", function () {
+            this.size = 1;
+            this.blur();
+        });
+        selectEl.addEventListener("blur", function () {
+            this.size = 1;
+        });
+    }
+
+    attachCompactSelectBehavior(minVersionInput);
+    attachCompactSelectBehavior(maxVersionInput);
+
+    function keepVersionRangeValid() {
+        var minVersion = Number(minVersionInput.value);
+        var maxVersion = Number(maxVersionInput.value);
+
+        if (minVersion > maxVersion) {
+            maxVersionInput.value = String(minVersion);
+        }
+    }
+
+    /* 頁籤切換 */
+    tabImgBtn.addEventListener("click", function() {
+        activeTab = "img";
+        tabImgBtn.classList.add("active"); tabGridBtn.classList.remove("active");
+        tabImgContent.classList.add("active"); tabGridContent.classList.remove("active");
+        copyBtn.innerText = "📷 複製完整圖檔";
+        selectAllBtn.style.display = "none";
+        clearMarkBtn.style.display = "none";
+    });
+
+    tabGridBtn.addEventListener("click", function() {
+        activeTab = "grid";
+        tabGridBtn.classList.add("active"); tabImgBtn.classList.remove("active");
+        tabGridContent.classList.add("active"); tabImgContent.classList.remove("active");
+        copyBtn.innerText = "✂️ 複製選取區（並加上藍邊標記）";
+        selectAllBtn.style.display = "block";
+        clearMarkBtn.style.display = "block";
+    });
+
+    /* 生成 QR Code 與網格 */
+    function generateQR() {
+        var text = textInput.value;
+        
+        // 設定套件會讀取的全域版本變數
+        window.qrVersionMin = Number(minVersionInput.value);
+        window.qrVersionMax = Number(maxVersionInput.value);
+
+        qrcodeContainer.innerHTML = "";
+        pixelGrid.innerHTML = "";
+        startCell = null;
+        endCell = null;
+        sizeInfo.classList.remove("error");
+
+        if (!text.trim()) {
+            sizeInfo.innerText = "規格：請輸入內容";
+            return;
+        }
+
+        try {
+            var safeText = unescape(encodeURIComponent(text));
+            var levelMap = { L: QRCode.CorrectLevel.L, M: QRCode.CorrectLevel.M, Q: QRCode.CorrectLevel.Q, H: QRCode.CorrectLevel.H };
+
+            // 初始化套件（套件內部會讀取 window.qrVersionMin）
+            var qrcode = new QRCode(qrcodeContainer, {
+                text: safeText,
+                width: 1,
+                height: 1,
+                correctLevel: levelMap[errorLevelInput.value]
+            });
+
+            var qr = qrcode._oQRCode;
+            var actualVersion = qr.typeNumber;
+            modulesCount = qr.moduleCount || (4 * actualVersion + 17);
+
+            var minVersion = Number(minVersionInput.value);
+            var maxVersion = Number(maxVersionInput.value);
+
+            qrcodeContainer.innerHTML = "";
+
+            // 若內容太大超過設定的最大版本範圍
+            if (actualVersion < minVersion || actualVersion > maxVersion) {
+                sizeInfo.classList.add("error");
+                sizeInfo.innerText =
+                    "❌ 目前內容需要 Version " + actualVersion +
+                    "，不在選定範圍 " + minVersion + "～" + maxVersion + " 內";
+                return;
+            }
+
+            // 自適應 Canvas 放大繪製（確保圖片不會變小）
+            var targetSize = 240;
+            var pixelSize = Math.max(4, Math.floor(targetSize / modulesCount));
+            var canvasSize = modulesCount * pixelSize;
+
+            var canvas = document.createElement("canvas");
+            canvas.width = canvasSize;
+            canvas.height = canvasSize;
+
+            var ctx = canvas.getContext("2d");
+            ctx.imageSmoothingEnabled = false;
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#000000";
+
+            for (var row = 0; row < modulesCount; row++) {
+                for (var col = 0; col < modulesCount; col++) {
+                    if (qr.isDark(row, col)) {
+                        ctx.fillRect(
+                            col * pixelSize,
+                            row * pixelSize,
+                            pixelSize,
+                            pixelSize
+                        );
+                    }
+                }
+            }
+
+            qrcodeContainer.appendChild(canvas);
+
+            // 建立像素網格
+            pixelGrid.style.gridTemplateColumns = "repeat(" + (modulesCount + 1) + ", 20px)";
+
+            var c0 = char0Input.value || "0";
+            var c1 = char1Input.value || "1";
+
+            /* 左上角角塊 */
+            var cornerCell = document.createElement("div");
+            cornerCell.className = "header-cell corner";
+            pixelGrid.appendChild(cornerCell);
+
+            /* X 軸數字標籤 */
+            for (var c = 1; c <= modulesCount; c++) {
+                var headerX = document.createElement("div");
+                headerX.className = "header-cell";
+                headerX.innerText = c;
+                pixelGrid.appendChild(headerX);
+            }
+
+            /* Y 軸數字標籤與像素點 */
+            for (var r = 0; r < modulesCount; r++) {
+                var headerY = document.createElement("div");
+                headerY.className = "header-cell";
+                headerY.innerText = r + 1;
+                pixelGrid.appendChild(headerY);
+
+                for (var c = 0; c < modulesCount; c++) {
+                    var isDark = qr.isDark(r, c);
+                    var cell = document.createElement("div");
+                    cell.className = "pixel-cell" + (isDark ? " dark" : "");
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+                    cell.innerText = isDark ? c1 : c0;
+                    pixelGrid.appendChild(cell);
+                }
+            }
+
+            sizeInfo.innerText =
+                "規格：" + modulesCount + " × " + modulesCount +
+                " 格子（原始邊長 " + canvas.width + " 像素）";
+
+        } catch (e) {
+            sizeInfo.classList.add("error");
+            sizeInfo.innerText = "❌ 生成失敗，請確認內容長度！";
+        }
+    }
+
+    function getCellFromPoint(x, y) {
+        var el = document.elementFromPoint(x, y);
+        if (el && el.classList.contains("pixel-cell")) return el;
+        return null;
+    }
+
+    function startSelection(cell) {
+        if (!cell) return;
+        isDragging = true;
+        startCell = cell;
+        endCell = cell;
+        updateSelectionUI();
+    }
+
+    function moveSelection(cell) {
+        if (!isDragging || !cell) return;
+        endCell = cell;
+        updateSelectionUI();
+    }
+
+    function endSelection() {
+        isDragging = false;
+    }
+
+    function updateSelectionUI() {
+        if (!startCell || !endCell) return;
+        var r1 = Math.min(Number(startCell.dataset.row), Number(endCell.dataset.row));
+        var r2 = Math.max(Number(startCell.dataset.row), Number(endCell.dataset.row));
+        var c1 = Math.min(Number(startCell.dataset.col), Number(endCell.dataset.col));
+        var c2 = Math.max(Number(startCell.dataset.col), Number(endCell.dataset.col));
+
+        var cells = pixelGrid.querySelectorAll(".pixel-cell");
+        cells.forEach(function(cell) {
+            var r = Number(cell.dataset.row);
+            var c = Number(cell.dataset.col);
+
+            if (r >= r1 && r <= r2 && c >= c1 && c <= c2) {
+                cell.classList.add("selecting");
+            } else {
+                cell.classList.remove("selecting");
+            }
+        });
+    }
+
+    selectAllBtn.addEventListener("click", function() {
+        var firstCell = pixelGrid.querySelector('.pixel-cell[data-row="0"][data-col="0"]');
+        var lastCell = pixelGrid.querySelector('.pixel-cell[data-row="' + (modulesCount - 1) + '"][data-col="' + (modulesCount - 1) + '"]');
+        if (firstCell && lastCell) {
+            startCell = firstCell;
+            endCell = lastCell;
+            updateSelectionUI();
+        }
+    });
+
+    pixelGrid.addEventListener("mousedown", function(e) { startSelection(e.target); });
+    pixelGrid.addEventListener("mouseover", function(e) { moveSelection(e.target); });
+    window.addEventListener("mouseup", endSelection);
+
+    pixelGrid.addEventListener("touchstart", function(e) {
+        var touch = e.touches[0];
+        startSelection(getCellFromPoint(touch.clientX, touch.clientY));
+    }, {passive: true});
+
+    pixelGrid.addEventListener("touchmove", function(e) {
+        var touch = e.touches[0];
+        moveSelection(getCellFromPoint(touch.clientX, touch.clientY));
+    }, {passive: true});
+
+    window.addEventListener("touchend", endSelection);
+
+    copyBtn.addEventListener("click", function() {
+        if (activeTab === "img") {
+            var canvas = qrcodeContainer.querySelector("canvas");
+            if (!canvas) return;
+            canvas.toBlob(function(blob) {
+                navigator.clipboard.write([new ClipboardItem({"image/png": blob})]).then(function() {
+                    var originalText = copyBtn.innerText;
+                    copyBtn.innerText = "✅ 圖片已複製至剪貼簿！";
+                    setTimeout(function() { copyBtn.innerText = originalText; }, 1500);
+                });
+            });
+            return;
+        }
+
+        if (!startCell || !endCell) {
+            alert("請先框選範圍或點選【全選網格】！");
+            return;
+        }
+
+        var r1 = Math.min(Number(startCell.dataset.row), Number(endCell.dataset.row));
+        var r2 = Math.max(Number(startCell.dataset.row), Number(endCell.dataset.row));
+        var c1 = Math.min(Number(startCell.dataset.col), Number(endCell.dataset.col));
+        var c2 = Math.max(Number(startCell.dataset.col), Number(endCell.dataset.col));
+
+        var textResult = "";
+        var cells = pixelGrid.querySelectorAll(".pixel-cell");
+
+        cells.forEach(function(cell) {
+            var r = Number(cell.dataset.row);
+            var c = Number(cell.dataset.col);
+
+            if (r >= r1 && r <= r2 && c >= c1 && c <= c2) {
+                textResult += cell.innerText;
+                if (c === c2) textResult += "\n";
+
+                cell.classList.remove("selecting");
+                cell.classList.add("copied-mark");
+            }
+        });
+
+        navigator.clipboard.writeText(textResult.trim()).then(function() {
+            var originalText = copyBtn.innerText;
+            copyBtn.innerText = "✅ 複製成功！區域已標記為綠底藍邊";
+            setTimeout(function() { copyBtn.innerText = originalText; }, 1500);
+        });
+    });
+
+    clearMarkBtn.addEventListener("click", function() {
+        var cells = pixelGrid.querySelectorAll(".pixel-cell");
+        cells.forEach(function(cell) {
+            cell.classList.remove("copied-mark");
+            cell.classList.remove("selecting");
+        });
+        startCell = null; endCell = null;
+    });
+
+    textInput.addEventListener("input", generateQR);
+    char0Input.addEventListener("input", generateQR);
+    char1Input.addEventListener("input", generateQR);
+    errorLevelInput.addEventListener("change", generateQR);
+
+    minVersionInput.addEventListener("change", function () {
+        keepVersionRangeValid();
+        generateQR();
+    });
+    maxVersionInput.addEventListener("change", function () {
+        keepVersionRangeValid();
+        generateQR();
+    });
+
+    generateQR();
+</script>
+
+</body>
+</html>
+
+

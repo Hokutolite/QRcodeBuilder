@@ -278,8 +278,6 @@
 <!-- 本地 QRCode 腳本 -->
 <script src="js/qrcode.min.js"></script>
 
-<script src="js/qrcode.min.js"></script>
-
 <script>
     var textInput = document.getElementById("qr-text");
     var errorLevelInput = document.getElementById("error-level");
@@ -377,7 +375,7 @@
         }
 
         try {
-            var safeText = unescape(encodeURIComponent(text));
+            var safeText = text;
             var levelMap = { L: QRCode.CorrectLevel.L, M: QRCode.CorrectLevel.M, Q: QRCode.CorrectLevel.Q, H: QRCode.CorrectLevel.H };
 
             // 初始化套件（套件內部會讀取 window.qrVersionMin）
